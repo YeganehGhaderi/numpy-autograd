@@ -342,3 +342,70 @@ class Tensor:
 
         out._backward = _backward
         return out
+
+    # =========================================================================
+    # Section 5 — Softmax family
+    # =========================================================================
+    def softmax(self, axis=-1):
+        shifted = self.data - self.data.max(axis=axis, keepdims=True)
+        e = np.exp(shifted)
+        s = e / e.sum(axis=axis, keepdims=True)
+        out = Tensor._make(s, (self,), "softmax")
+
+        def _backward():
+            # Jacobian-vector product: ds = s * (g - sum(g*s))
+            g = out.grad
+            self._accum(s * (g - (g * s).sum(axis=axis, keepdims=True)))
+
+        out._backward = _backward
+        return out
+
+    def log_softmax(self, axis=-1):
+        # log softmax(x) = x - logsumexp(x); subtracting the max avoids overflow.
+        shifted = self.data - self.data.max(axis=axis, keepdims=True)
+        logsumexp = np.log(np.exp(shifted).sum(axis=axis, keepdims=True))
+        y = shifted - logsumexp
+        out = Tensor._make(y, (self,), "log_softmax")
+
+        def _backward():
+            # dy_i/dx_j = [i==j] - softmax_j  ->  dx = g - softmax * sum(g)
+            g = out.grad
+            softmax = np.exp(y)
+            self._accum(g - softmax * g.sum(axis=axis, keepdims=True))
+
+        out._backward = _backward
+        return out
+
+
+def cross_entropy(logits, targets):
+    """Mean cross-entropy loss, softmax and log fused into one operation.
+
+    logits:  Tensor of shape (N, C), raw class scores
+    targets: integer array of shape (N,), the correct class of each row
+    """
+    targets = np.asarray(targets, dtype=np.int64)
+    n = logits.shape[0]
+    rows = np.arange(n)
+
+    shifted = logits.data - logits.data.max(axis=1, keepdims=True)
+    log_probs = shifted - np.log(np.exp(shifted).sum(axis=1, keepdims=True))
+    loss = -log_probs[rows, targets].mean()
+
+    out = Tensor._make(np.asarray(loss, dtype=logits.dtype), (logits,), "cross_entropy")
+
+    def _backward():
+        # The famous result: d(loss)/d(logits) = (softmax - one_hot) / N
+        grad = np.exp(log_probs)
+        grad[rows, targets] -= 1
+        logits._accum(out.grad * grad / n)
+
+    out._backward = _backward
+    return out
+
+
+def cross_entropy_composed(logits, targets):
+    """The same loss built from basic ops; used to check the fused version."""
+    targets = np.asarray(targets, dtype=np.int64)
+    log_probs = logits.log_softmax(axis=1)
+    picked = log_probs[np.arange(logits.shape[0]), targets]
+    return -picked.mean()
