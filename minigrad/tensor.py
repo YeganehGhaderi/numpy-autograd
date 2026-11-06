@@ -280,3 +280,65 @@ class Tensor:
 
         out._backward = _backward
         return out
+
+    # =========================================================================
+    # Section 4 — Element-wise functions
+    # =========================================================================
+    def exp(self):
+        out = Tensor._make(np.exp(self.data), (self,), "exp")
+
+        def _backward():
+            self._accum(out.grad * out.data)  # (e^x)' = e^x
+
+        out._backward = _backward
+        return out
+
+    def log(self):
+        out = Tensor._make(np.log(self.data), (self,), "log")
+
+        def _backward():
+            self._accum(out.grad / self.data)  # (ln x)' = 1/x
+
+        out._backward = _backward
+        return out
+
+    def __pow__(self, n):
+        if not isinstance(n, (int, float)):
+            raise TypeError("only a constant (int/float) exponent is supported")
+        out = Tensor._make(self.data**n, (self,), f"pow{n}")
+
+        def _backward():
+            self._accum(out.grad * n * self.data ** (n - 1))  # (x^n)' = n x^(n-1)
+
+        out._backward = _backward
+        return out
+
+    def relu(self):
+        out = Tensor._make(np.maximum(self.data, 0), (self,), "relu")
+
+        def _backward():
+            self._accum(out.grad * (self.data > 0))  # slope 1 where x>0, else 0
+
+        out._backward = _backward
+        return out
+
+    def sigmoid(self):
+        # Stable form of 1/(1+e^-x): never computes e^(large number).
+        s = np.exp(-np.logaddexp(0, -self.data)).astype(self.data.dtype)
+        out = Tensor._make(s, (self,), "sigmoid")
+
+        def _backward():
+            self._accum(out.grad * s * (1 - s))  # s' = s(1-s)
+
+        out._backward = _backward
+        return out
+
+    def tanh(self):
+        t = np.tanh(self.data)
+        out = Tensor._make(t, (self,), "tanh")
+
+        def _backward():
+            self._accum(out.grad * (1 - t**2))  # tanh' = 1 - tanh^2
+
+        out._backward = _backward
+        return out
