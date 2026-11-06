@@ -1,0 +1,13 @@
+{
+  "lockstep_steps": 500,
+  "lockstep_max_abs_loss_diff": 0.043018639087677,
+  "minigrad": {
+    "test_acc": 0.8901,
+    "seconds_per_epoch": 8.314681960000083
+  },
+  "pytorch": {
+    "test_acc": 0.8866,
+    "seconds_per_epoch": 1.673652693333376
+  },
+  "speed_ratio": 4.967985289373221
+}
