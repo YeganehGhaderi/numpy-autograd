@@ -63,15 +63,16 @@ def accuracy(model, x, y, batch_size=1000):
 
 # ---- Shared by the MLP experiments (day 3) ----------------------------------
 
-def build_mlp(dropout=0.2, rng=None):
+def build_mlp(dropout=0.2, rng=None, dtype=np.float32):
     """784 -> 256 -> ReLU -> Dropout -> 128 -> ReLU -> 10, in minigrad."""
     from minigrad import nn
 
     rng = rng if rng is not None else np.random.default_rng(0)
-    layers = [nn.Linear(784, 256, rng=rng), nn.ReLU()]
+    layers = [nn.Linear(784, 256, rng=rng, dtype=dtype), nn.ReLU()]
     if dropout > 0:
         layers.append(nn.Dropout(dropout, rng=rng))
-    layers += [nn.Linear(256, 128, rng=rng), nn.ReLU(), nn.Linear(128, 10, rng=rng)]
+    layers += [nn.Linear(256, 128, rng=rng, dtype=dtype), nn.ReLU(),
+               nn.Linear(128, 10, rng=rng, dtype=dtype)]
     return nn.Sequential(*layers)
 
 
