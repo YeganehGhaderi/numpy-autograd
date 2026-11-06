@@ -409,3 +409,24 @@ def cross_entropy_composed(logits, targets):
     log_probs = logits.log_softmax(axis=1)
     picked = log_probs[np.arange(logits.shape[0]), targets]
     return -picked.mean()
+
+def binary_cross_entropy_with_logits(logits, targets):
+    """Mean binary cross-entropy, sigmoid and log fused into one operation.
+
+    logits:  Tensor of any shape, raw scores (before sigmoid)
+    targets: array of the same shape with values 0 or 1
+    """
+    targets = np.asarray(targets, dtype=logits.dtype).reshape(logits.shape)
+    z = logits.data
+    # loss = -[y log s(z) + (1-y) log(1 - s(z))]  simplifies to  log(1 + e^z) - y z.
+    # np.logaddexp(0, z) computes log(1 + e^z) without overflow.
+    loss = (np.logaddexp(0, z) - targets * z).mean()
+    out = Tensor._make(np.asarray(loss, dtype=logits.dtype), (logits,), "bce_with_logits")
+
+    def _backward():
+        # Same pattern as softmax cross-entropy: (sigmoid(z) - y) / N
+        s = np.exp(-np.logaddexp(0, -z))
+        logits._accum(out.grad * (s - targets) / z.size)
+
+    out._backward = _backward
+    return out
