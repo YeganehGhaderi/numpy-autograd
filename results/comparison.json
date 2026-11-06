@@ -1,13 +1,22 @@
 {
   "lockstep_steps": 500,
-  "lockstep_max_abs_loss_diff": 0.043018639087677,
+  "lockstep_loss_difference": {
+    "float64": {
+      "max_diff_first_50_steps": 4.440892098500626e-16,
+      "max_diff_all_steps": 4.440892098500626e-16
+    },
+    "float32": {
+      "max_diff_first_50_steps": 2.384185791015625e-07,
+      "max_diff_all_steps": 0.043018639087677
+    }
+  },
   "minigrad": {
     "test_acc": 0.8901,
     "seconds_per_epoch": 8.314681960000083
   },
   "pytorch": {
     "test_acc": 0.8866,
-    "seconds_per_epoch": 1.673652693333376
+    "seconds_per_epoch": 1.5775176400002238
   },
-  "speed_ratio": 4.967985289373221
+  "speed_ratio": 5.270737866360026
 }
