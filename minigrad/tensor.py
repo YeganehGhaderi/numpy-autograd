@@ -137,3 +137,68 @@ class Tensor:
         # Walk from the output back to the inputs.
         for v in reversed(topo):
             v._backward()
+
+    # =========================================================================
+    # Section 2 — Arithmetic
+    # =========================================================================
+    def __add__(self, other):
+        other = self._wrap(other)
+        out = Tensor._make(self.data + other.data, (self, other), "add")
+
+        def _backward():
+            # d(a+b)/da = 1, d(a+b)/db = 1
+            if self.requires_grad:
+                self._accum(_unbroadcast(out.grad, self.shape))
+            if other.requires_grad:
+                other._accum(_unbroadcast(out.grad, other.shape))
+
+        out._backward = _backward
+        return out
+
+    def __mul__(self, other):
+        other = self._wrap(other)
+        out = Tensor._make(self.data * other.data, (self, other), "mul")
+
+        def _backward():
+            # d(a*b)/da = b, d(a*b)/db = a
+            if self.requires_grad:
+                self._accum(_unbroadcast(out.grad * other.data, self.shape))
+            if other.requires_grad:
+                other._accum(_unbroadcast(out.grad * self.data, other.shape))
+
+        out._backward = _backward
+        return out
+
+    def __truediv__(self, other):
+        other = self._wrap(other)
+        out = Tensor._make(self.data / other.data, (self, other), "div")
+
+        def _backward():
+            # d(a/b)/da = 1/b, d(a/b)/db = -a/b^2
+            if self.requires_grad:
+                self._accum(_unbroadcast(out.grad / other.data, self.shape))
+            if other.requires_grad:
+                g = -out.grad * self.data / other.data**2
+                other._accum(_unbroadcast(g, other.shape))
+
+        out._backward = _backward
+        return out
+
+    def __neg__(self):
+        return self * -1.0
+
+    def __sub__(self, other):
+        return self + (-self._wrap(other))
+
+    # Reflected versions: called for `2 + t`, `2 * t`, `2 - t`, `2 / t`.
+    def __radd__(self, other):
+        return self + other
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __rsub__(self, other):
+        return self._wrap(other) - self
+
+    def __rtruediv__(self, other):
+        return self._wrap(other) / self
