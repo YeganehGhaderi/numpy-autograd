@@ -202,3 +202,81 @@ class Tensor:
 
     def __rtruediv__(self, other):
         return self._wrap(other) / self
+
+    # =========================================================================
+    # Section 3 — Shape operations
+    # =========================================================================
+    def __matmul__(self, other):
+        other = self._wrap(other)
+        if self.ndim != 2 or other.ndim != 2:
+            raise ValueError("matmul supports 2-D tensors only")
+        out = Tensor._make(self.data @ other.data, (self, other), "matmul")
+
+        def _backward():
+            # C = A @ B  ->  dA = dC @ B^T,  dB = A^T @ dC
+            if self.requires_grad:
+                self._accum(out.grad @ other.data.T)
+            if other.requires_grad:
+                other._accum(self.data.T @ out.grad)
+
+        out._backward = _backward
+        return out
+
+    def sum(self, axis=None, keepdims=False):
+        out = Tensor._make(self.data.sum(axis=axis, keepdims=keepdims), (self,), "sum")
+
+        def _backward():
+            # Every input element contributed with weight 1, so each one gets
+            # the gradient of the sum it went into: copy grad back to the input shape.
+            g = out.grad
+            if axis is not None and not keepdims:
+                g = np.expand_dims(g, axis)
+            self._accum(np.broadcast_to(g, self.shape))
+
+        out._backward = _backward
+        return out
+
+    def mean(self, axis=None, keepdims=False):
+        if axis is None:
+            count = self.data.size
+        else:
+            axes = axis if isinstance(axis, tuple) else (axis,)
+            count = int(np.prod([self.shape[a] for a in axes]))
+        return self.sum(axis=axis, keepdims=keepdims) / count
+
+    def reshape(self, *shape):
+        out = Tensor._make(self.data.reshape(*shape), (self,), "reshape")
+
+        def _backward():
+            self._accum(out.grad.reshape(self.shape))
+
+        out._backward = _backward
+        return out
+
+    def transpose(self, *axes):
+        axes = axes if axes else tuple(reversed(range(self.ndim)))
+        out = Tensor._make(self.data.transpose(axes), (self,), "transpose")
+
+        def _backward():
+            # Undo the permutation with its inverse.
+            self._accum(out.grad.transpose(np.argsort(axes)))
+
+        out._backward = _backward
+        return out
+
+    @property
+    def T(self):
+        return self.transpose()
+
+    def __getitem__(self, index):
+        out = Tensor._make(self.data[index], (self,), "getitem")
+
+        def _backward():
+            # Picked elements get the gradient; the rest get 0. np.add.at handles
+            # an element picked more than once (its gradients are added).
+            g = np.zeros_like(self.data)
+            np.add.at(g, index, out.grad)
+            self._accum(g)
+
+        out._backward = _backward
+        return out
