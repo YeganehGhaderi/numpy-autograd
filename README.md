@@ -12,8 +12,9 @@ The library depends on NumPy only; PyTorch is used solely to check the results.
 ![minigrad and PyTorch training loss curves overlap exactly](results/lockstep.png)
 
 *Same initial weights, same batches, same optimizer (Adam). In float64 the two loss curves agree
-to **4.4 × 10⁻¹⁶** over 500 training steps, the limit of float64 precision. In float32 they start
-identical and then drift slowly; see [Design notes](#why-float32-runs-drift-apart).*
+to **4.4 × 10⁻¹⁶** over 500 training steps, the limit of float64 precision. In float32 they agree
+to within about 10⁻⁷ (often exactly) for roughly the first 290 steps and then separate;
+see [Design notes](#why-float32-runs-drift-apart).*
 
 ---
 
@@ -161,8 +162,8 @@ identity and nothing needs rescaling. Its backward pass needs no extra code: dro
 multiplication by a fixed mask, so its gradient is the mask.
 
 ### Why float32 runs drift apart
-In float32 the two libraries agree to ~2 × 10⁻⁷ for the first 50 steps, then slowly diverge
-(4.3 × 10⁻² after 500 steps). This is not a bug: running minigrad against *itself* in float32 vs
+In float32 the two libraries agree to within ~2 × 10⁻⁷ (often exactly) for roughly the first
+290 steps; then the difference jumps and stays around 10⁻³–10⁻², reaching 4.3 × 10⁻² at most. This is not a bug: running minigrad against *itself* in float32 vs
 float64 shows the same drift, while two float64 runs that differ by 10⁻¹⁵ stay 10⁻¹⁵ apart. The
 two libraries sum numbers in a different order, so their float32 results differ in the last bits,
 and Adam amplifies this: it divides each update by the running size of that parameter's gradient,
